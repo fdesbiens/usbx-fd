@@ -1,4 +1,4 @@
-/***************************************************************************/
+﻿/***************************************************************************/
 /* Copyright (c) 2024 Microsoft Corporation                                */
 /* Copyright (c) 2026 Eclipse ThreadX contributors                         */
 /*                                                                         */
@@ -9,7 +9,7 @@
 /* SPDX-License-Identifier: MIT                                            */
 /***************************************************************************/
 
-﻿#include "ux_test.h"
+#include "ux_test.h"
 #include "ux_test_hcd_sim_host.h"
 #include "ux_test_dcd_sim_slave.h"
 
