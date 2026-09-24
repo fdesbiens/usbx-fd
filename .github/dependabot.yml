@@ -7,4 +7,4 @@ updates:
       interval: weekly
     ignore:
       # The cross-repository bootstrap and workflow are reviewed together.
-      - dependency-name: eclipse-threadx/threadx
+      - dependency-name: eclipse-threadx/threadx/.github/workflows/regression_template.yml
