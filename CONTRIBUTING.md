@@ -71,19 +71,19 @@ For more information, please see the Eclipse Committer Handbook: https://www.ecl
 
 ## Required tooling
 
-Build and test USBX with CMake and Ninja. The root project and regression project require CMake 3.13 or later. The project reference compiler on Linux is GCC 14. The regression installer, `scripts/install.sh`, sets up Ubuntu host tools and currently pins `gcovr` 4.1 for coverage reports. Embedded ports use the compiler and toolchain files for their target; the repository has GNU, IAR, and Arm Compiler ports. Use GCC syntax for assembly built with GNU toolchains.
+Build and test USBX with CMake and Ninja. The root project and regression project require CMake 3.13 or later. The project reference compiler on Linux is GCC 14 with matching gcov. The regression installer, `scripts/install.sh`, sets up Ubuntu host tools and pins `gcovr` 8.6 in a Python virtual environment; activate that environment before collecting coverage locally. The Windows simulator has `win32` and `win64` ports and uses MSVC from the Visual Studio Build Tools; the Visual Studio IDE is not required. Embedded ports use the compiler and toolchain files for their target; the repository has GNU, IAR, and Arm Compiler ports. Use GCC syntax for assembly built with GNU toolchains.
 
 USBX code must be C99-compatible. The regression project's CMake options include `-std=c99`.
 
-The regression test setup uses ThreadX, NetX Duo, and FileX. Its runner clones those repositories under `test/externals/`. An embedded application must supply the component targets required by the USBX CMake build.
+The regression test setup uses ThreadX, NetX Duo, and FileX. The Linux runner fetches their pinned revisions under `test/externals/` and checks existing checkouts against those pins; the Windows build script accepts their source checkouts as arguments. An embedded application must supply the component targets required by the USBX CMake build.
 
 ## Building and testing
 
 The host regression suite lives under `test/cmake/usbx/`. Run its build script before its test script:
 
 ```sh
-scripts/build.sh all
-scripts/test.sh all
+CC=gcc-14 GCOV=gcov-14 TX_COVERAGE=ON scripts/build.sh all
+CC=gcc-14 GCOV=gcov-14 TX_COVERAGE=ON scripts/test.sh all
 ```
 
 The scripts also accept one or more configuration names instead of `all`. For a focused run, use the same configurations in both commands:
@@ -95,13 +95,22 @@ scripts/test.sh default_build_coverage standalone_device_build_coverage
 
 The CMake test project defines configurations for the normal RTOS build, error checking, TraceX integration, device buffer ownership and zero copy, builds without FileX, optimized and generic builds, OTG support, memory management, mass storage, and standalone host and device modes. Select the configurations affected by your change; run `all` before asking for review when feasible.
 
-Configurations ending in `_coverage` or `_full_coverage` produce XML and HTML reports under `test/cmake/usbx/coverage_report/`. The report script changes its source exclusions by configuration. A percentage from one configuration therefore does not describe the entire host, device, and standalone codebase. The project goal is 100% test coverage: add or update regression tests for new behaviour and explain any relevant gaps. Host tests do not replace execution on the USB hardware or controller affected by a port change.
+On Windows, use the PowerShell scripts with the Visual Studio Build Tools available. Supply the three component source checkouts explicitly:
+
+```powershell
+scripts/build_usbx.ps1 -Arch win64 -Configuration default_build_coverage -ThreadXDir 'path/to/threadx' -FilexDir 'path/to/filex' -NetxduoDir 'path/to/netxduo'
+scripts/test_usbx.ps1 -Arch win64 -Configuration default_build_coverage
+```
+
+Use `-Arch win32` for the 32-bit simulator. Both scripts accept `-Configuration all` or selected configuration names. The Windows test script runs CTest serially because concurrent simulator tests can interfere with timing. Report the architecture and configurations that exercised the change.
+
+On Linux, `TX_COVERAGE=ON` instruments every selected configuration and produces per-configuration and merged reports under `test/cmake/usbx/coverage_report/`. The merged report includes compiled USBX C sources across the configurations without profile-specific exclusions. The full-suite CI gate requires at least 66% line and 54.5% branch coverage; these floors do not replace the project's 100% coverage goal. The MSVC Windows runs do not collect coverage. Add or update regression tests for new behaviour, explain relevant gaps, and test port changes on the affected USB hardware or controller when available.
 
 ## Continuous integration
 
-`regression_test.yml` is the repository's GitHub Actions regression workflow. It runs on pushes and pull requests to `master`, and by manual dispatch. Automatic runs build and test all USBX configurations through the ThreadX reusable regression workflow. Manual runs can select configurations and coverage settings.
+`regression_test.yml` runs on pushes and pull requests to `dev` and `master`, and by manual dispatch. Automatic Linux runs build and test all 17 USBX configurations through the pinned ThreadX reusable regression workflow, then merge their coverage. Manual runs can select configurations and skip coverage.
 
-**A pull request to `dev` does not trigger this workflow.** Run the relevant scripts locally and report their results in the pull request. Do not describe an unrun configuration or hardware target as verified.
+The workflow does not run the Windows simulator or USB hardware tests. Run those where relevant and report their results separately. Do not describe an unrun configuration or hardware target as verified.
 
 ## Pull request acceptance criteria
 
@@ -131,7 +140,7 @@ Before requesting a review, check your contribution against this list.
 
 **Verification**
 
-* All applicable CI checks are green. The `master` workflow does not run automatically for a pull request to `dev`.
+* All applicable CI checks are green, including the full Linux regression workflow on a pull request to `dev`.
 * The change builds without new warnings on the reference toolchains.
 * Regression tests covering the change are added or updated. The project targets 100% test coverage; a pull request that lowers coverage needs a stated reason. State which USBX configurations ran and any relevant coverage gap.
 * API or behaviour changes come with a matching documentation pull request against [rtos-docs-asciidoc](https://github.com/eclipse-threadx/rtos-docs-asciidoc).
